@@ -4,7 +4,7 @@
 #include "GameFramework/Character.h"
 #include "AegisCharacter.generated.h"
 
-// Forward declaration
+// Forward declarations
 class AAegisWeapon;
 class UCameraComponent;
 
