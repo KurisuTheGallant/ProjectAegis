@@ -1,45 +1,40 @@
 #include "DummyTarget.h"
+#include "AegisCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
-
-// Sets default values
 ADummyTarget::ADummyTarget()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.bCanEverTick = true;
 
-	//set Default Health 
-	MaxHealth = 100.f;
-	CurrentHealth = MaxHealth;
-	bIsDead = false;
+    // Set default health
+    MaxHealth = 100.f;
+    CurrentHealth = MaxHealth;
+    bIsDead = false;
 
-	//disable Movement for Dummy Target
-	GetCharacterMovement()->DisableMovement();
-	GetCharacterMovement()->SetMovementMode(MOVE_None);
+    // Disable movement for dummy
+    GetCharacterMovement()->DisableMovement();
+    GetCharacterMovement()->SetMovementMode(MOVE_None);
 
-	//set collisions to respond to all channels
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	GetCapsuleComponent()->SetCollisionResponseToAllChannels(ECR_Block);
-	GetMesh()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+    // Set collision to respond to all channels
+    GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    GetCapsuleComponent()->SetCollisionResponseToAllChannels(ECR_Block);
+    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
 }
 
-// Called when the game starts or when spawned
 void ADummyTarget::BeginPlay()
 {
-	Super::BeginPlay();
-	
-	//Reser health on Spawn
-	CurrentHealth = MaxHealth;
-	bIsDead = false;
+    Super::BeginPlay();
+
+    // Reset health on spawn
+    CurrentHealth = MaxHealth;
+    bIsDead = false;
 }
 
-// Called every frame
 void ADummyTarget::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
-
+    Super::Tick(DeltaTime);
 }
 
 float ADummyTarget::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
@@ -65,13 +60,13 @@ float ADummyTarget::TakeDamage(float DamageAmount, FDamageEvent const& DamageEve
     // Check if dead
     if (CurrentHealth <= 0.0f)
     {
-        Die();
+        Die(EventInstigator);
     }
 
     return ActualDamage;
 }
 
-void ADummyTarget::Die()
+void ADummyTarget::Die(AController* Killer)
 {
     if (bIsDead)
     {
@@ -81,6 +76,25 @@ void ADummyTarget::Die()
     bIsDead = true;
 
     UE_LOG(LogTemp, Warning, TEXT("DummyTarget died!"));
+
+    // Get death location for particle effect
+    FVector DeathLocation = GetActorLocation();
+
+    // === ENERGY STEAL: Notify the killer! ===
+    if (Killer)
+    {
+        APawn* KillerPawn = Killer->GetPawn();
+        if (KillerPawn)
+        {
+            AAegisCharacter* AegisChar = Cast<AAegisCharacter>(KillerPawn);
+            if (AegisChar)
+            {
+                // Trigger the Energy Steal mechanic with kill location!
+                AegisChar->OnKillEnemy(DeathLocation);
+                UE_LOG(LogTemp, Warning, TEXT("Notified AegisCharacter of kill at location!"));
+            }
+        }
+    }
 
     // Disable collision
     GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -93,4 +107,3 @@ void ADummyTarget::Die()
     // Destroy after 5 seconds
     SetLifeSpan(5.0f);
 }
-

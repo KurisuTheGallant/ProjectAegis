@@ -7,44 +7,43 @@
 UCLASS()
 class PROJECTAEGIS_API ADummyTarget : public ACharacter
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	//Constructor
-	ADummyTarget();
+    // Constructor
+    ADummyTarget();
 
 protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
+    // Called when the game starts
+    virtual void BeginPlay() override;
 
-	//Health System
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
-	float MaxHealth;
+    // Health system
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+    float MaxHealth;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
-	float CurrentHealth;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+    float CurrentHealth;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
-	bool bIsDead;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+    bool bIsDead;
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+public:
+    // Called every frame
+    virtual void Tick(float DeltaTime) override;
 
-	// Take damage override
-	virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
-		class AController* EventInstigatir, AActor* DamageCauser) override;
+    // Take damage override
+    virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
+        class AController* EventInstigator, AActor* DamageCauser) override;
 
-	//Death function
-	UFUNCTION()
-	void Die();
+    // Death function
+    UFUNCTION()
+    void Die(AController* Killer);
 
-	//check if dead
-	UFUNCTION(BlueprintPure, Category = "Health")
-	bool IsDead() const { return bIsDead; }
+    // Check if dead
+    UFUNCTION(BlueprintPure, Category = "Health")
+    bool IsDead() const { return bIsDead; }
 
-	//get health percentage
-	UFUNCTION(BlueprintPure, Category = "Health")
-	float GetHealthPercent() const { return CurrentHealth / MaxHealth; }
-
+    // Get health percentage
+    UFUNCTION(BlueprintPure, Category = "Health")
+    float GetHealthPercent() const { return CurrentHealth / MaxHealth; }
 };
