@@ -6,6 +6,8 @@
 #include "TimerManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystemComponent.h"
+#include "GameFramework/PlayerStart.h"
+#include "EngineUtils.h"
 
 // Constructor
 AAegisCharacter::AAegisCharacter()
@@ -27,6 +29,12 @@ AAegisCharacter::AAegisCharacter()
     GetCharacterMovement()->MaxWalkSpeed = BaseMovementSpeed;
     GetCharacterMovement()->JumpZVelocity = 600.f;
 
+    // Health system defaults
+    MaxHealth = 100.f;
+    CurrentHealth = MaxHealth;
+    bIsDead = false;
+    RespawnDelay = 3.0f;
+
     // Energy Steal system defaults
     SpeedBuffPercentage = 0.2f;  // 20% speed increase
     BuffDuration = 5.0f;          // 5 seconds
@@ -40,6 +48,10 @@ AAegisCharacter::AAegisCharacter()
 void AAegisCharacter::BeginPlay()
 {
     Super::BeginPlay();
+
+    // Initialize health
+    CurrentHealth = MaxHealth;
+    bIsDead = false;
 
     // Store base speed
     BaseMovementSpeed = GetCharacterMovement()->MaxWalkSpeed;
@@ -97,7 +109,7 @@ void AAegisCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComp
 // Move forward/backward
 void AAegisCharacter::MoveForward(float Value)
 {
-    if (Value != 0.0f)
+    if (Value != 0.0f && !bIsDead)
     {
         // Find out which way is forward
         const FRotator Rotation = Controller->GetControlRotation();
@@ -112,7 +124,7 @@ void AAegisCharacter::MoveForward(float Value)
 // Move right/left
 void AAegisCharacter::MoveRight(float Value)
 {
-    if (Value != 0.0f)
+    if (Value != 0.0f && !bIsDead)
     {
         // Find out which way is right
         const FRotator Rotation = Controller->GetControlRotation();
@@ -127,16 +139,133 @@ void AAegisCharacter::MoveRight(float Value)
 // Fire weapon
 void AAegisCharacter::FireWeapon()
 {
-    if (CurrentWeapon)
+    if (CurrentWeapon && !bIsDead)
     {
         CurrentWeapon->Fire();
     }
+}
+
+// === HEALTH SYSTEM IMPLEMENTATION ===
+
+float AAegisCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+    AController* EventInstigator, AActor* DamageCauser)
+{
+    if (bIsDead)
+    {
+        return 0.0f;
+    }
+
+    // Calculate actual damage
+    const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+    // Reduce health
+    CurrentHealth -= ActualDamage;
+    CurrentHealth = FMath::Max(CurrentHealth, 0.0f);
+
+    UE_LOG(LogTemp, Warning, TEXT("Player took %.2f damage. Health: %.2f / %.2f"),
+        ActualDamage, CurrentHealth, MaxHealth);
+
+    // Check if dead
+    if (CurrentHealth <= 0.0f)
+    {
+        Die();
+    }
+
+    return ActualDamage;
+}
+
+void AAegisCharacter::Die()
+{
+    if (bIsDead)
+    {
+        return;
+    }
+
+    bIsDead = true;
+
+    UE_LOG(LogTemp, Warning, TEXT("Player died!"));
+
+    // Disable input
+    DisableInput(Cast<APlayerController>(GetController()));
+
+    // Disable collision
+    GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+    // Hide weapon
+    if (CurrentWeapon)
+    {
+        CurrentWeapon->SetActorHiddenInGame(true);
+    }
+
+    // Ragdoll
+    GetMesh()->SetSimulatePhysics(true);
+    GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+
+    // Remove any active buffs
+    RemoveSpeedBuff();
+
+    // Set respawn timer
+    GetWorldTimerManager().SetTimer(
+        RespawnTimerHandle,
+        this,
+        &AAegisCharacter::Respawn,
+        RespawnDelay,
+        false
+    );
+}
+
+void AAegisCharacter::Respawn()
+{
+    UE_LOG(LogTemp, Warning, TEXT("Player respawning..."));
+
+    // Find a player start
+    APlayerStart* PlayerStart = nullptr;
+    for (TActorIterator<APlayerStart> It(GetWorld()); It; ++It)
+    {
+        PlayerStart = *It;
+        break;
+    }
+
+    if (PlayerStart)
+    {
+        // Teleport to player start
+        SetActorLocation(PlayerStart->GetActorLocation());
+        SetActorRotation(PlayerStart->GetActorRotation());
+    }
+
+    // Reset health
+    CurrentHealth = MaxHealth;
+    bIsDead = false;
+
+    // Re-enable collision
+    GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    GetMesh()->SetSimulatePhysics(false);
+    GetMesh()->SetCollisionProfileName(TEXT("CharacterMesh"));
+    GetMesh()->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+    GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f));
+    GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+
+    // Show weapon
+    if (CurrentWeapon)
+    {
+        CurrentWeapon->SetActorHiddenInGame(false);
+    }
+
+    // Re-enable input
+    EnableInput(Cast<APlayerController>(GetController()));
+
+    UE_LOG(LogTemp, Warning, TEXT("Player respawned!"));
 }
 
 // === ENERGY STEAL SYSTEM IMPLEMENTATION ===
 
 void AAegisCharacter::OnKillEnemy(FVector KillLocation)
 {
+    if (bIsDead)
+    {
+        return;
+    }
+
     UE_LOG(LogTemp, Warning, TEXT("OnKillEnemy called! Applying speed buff..."));
 
     // Play visual and audio feedback
@@ -148,7 +277,7 @@ void AAegisCharacter::OnKillEnemy(FVector KillLocation)
 
 void AAegisCharacter::ApplySpeedBuff()
 {
-    if (!GetCharacterMovement())
+    if (!GetCharacterMovement() || bIsDead)
     {
         return;
     }

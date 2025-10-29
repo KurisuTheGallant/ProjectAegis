@@ -42,6 +42,35 @@ protected:
     // Fire weapon function
     void FireWeapon();
 
+    // === HEALTH SYSTEM ===
+
+    // Maximum health
+    UPROPERTY(EditDefaultsOnly, Category = "Health")
+    float MaxHealth;
+
+    // Current health
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+    float CurrentHealth;
+
+    // Is player dead?
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+    bool bIsDead;
+
+    // Respawn delay in seconds
+    UPROPERTY(EditDefaultsOnly, Category = "Health")
+    float RespawnDelay;
+
+    // Timer handle for respawn
+    FTimerHandle RespawnTimerHandle;
+
+    // Death function
+    UFUNCTION()
+    void Die();
+
+    // Respawn function
+    UFUNCTION()
+    void Respawn();
+
     // === ENERGY STEAL SYSTEM ===
 
     // Base movement speed (default)
@@ -103,6 +132,10 @@ public:
     // Called to bind functionality to input
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+    // Take damage override
+    virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent,
+        class AController* EventInstigator, AActor* DamageCauser) override;
+
     // Called when this character gets a kill
     UFUNCTION(BlueprintCallable, Category = "Energy Steal")
     void OnKillEnemy(FVector KillLocation);
@@ -114,4 +147,16 @@ public:
     // Check if buff is active
     UFUNCTION(BlueprintPure, Category = "Energy Steal")
     bool IsBuffActive() const { return bIsBuffActive; }
+
+    // Get health percentage (for UI)
+    UFUNCTION(BlueprintPure, Category = "Health")
+    float GetHealthPercent() const { return CurrentHealth / MaxHealth; }
+
+    // Get current health
+    UFUNCTION(BlueprintPure, Category = "Health")
+    float GetCurrentHealth() const { return CurrentHealth; }
+
+    // Check if dead
+    UFUNCTION(BlueprintPure, Category = "Health")
+    bool IsDead() const { return bIsDead; }
 };
