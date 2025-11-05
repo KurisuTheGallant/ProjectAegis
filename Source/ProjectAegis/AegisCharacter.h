@@ -9,6 +9,7 @@ class AAegisWeapon;
 class UCameraComponent;
 class UParticleSystem;
 class USoundBase;
+class AAegisGrenade;
 
 UCLASS()
 class PROJECTAEGIS_API AAegisCharacter : public ACharacter
@@ -34,6 +35,34 @@ protected:
     // Weapon class to spawn
     UPROPERTY(EditDefaultsOnly, Category = "Weapon")
     TSubclassOf<AAegisWeapon> WeaponClass;
+
+    // === ABILITY SYSTEM ===
+
+// Grenade class to spawn
+    UPROPERTY(EditDefaultsOnly, Category = "Abilities")
+    TSubclassOf<AAegisGrenade> GrenadeClass;
+
+    // Grenade cooldown time
+    UPROPERTY(EditDefaultsOnly, Category = "Abilities")
+    float GrenadeCooldown;
+
+    // Is grenade on cooldown?
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities")
+    bool bGrenadeOnCooldown;
+
+    // Grenade throw speed
+    UPROPERTY(EditDefaultsOnly, Category = "Abilities")
+    float GrenadeThrowSpeed;
+
+    // Timer handle for grenade cooldown
+    FTimerHandle GrenadeCooldownTimerHandle;
+
+    // Use grenade ability
+    void UseGrenadeAbility();
+
+    // Reset grenade cooldown
+    UFUNCTION()
+    void ResetGrenadeCooldown();
 
     // Movement functions
     void MoveForward(float Value);
@@ -159,4 +188,12 @@ public:
     // Check if dead
     UFUNCTION(BlueprintPure, Category = "Health")
     bool IsDead() const { return bIsDead; }
+
+    // Check if grenade is on cooldown
+    UFUNCTION(BlueprintPure, Category = "Abilities")
+    bool IsGrenadeOnCooldown() const { return bGrenadeOnCooldown; }
+
+    // Get grenade cooldown remaining (for UI)
+    UFUNCTION(BlueprintPure, Category = "Abilities")
+    float GetGrenadeCooldownRemaining() const;
 };
