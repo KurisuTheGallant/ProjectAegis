@@ -16,6 +16,9 @@ public:
     // Fire the weapon
     void Fire();
 
+    // Replication
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 protected:
     // Weapon mesh component
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -38,6 +41,10 @@ protected:
     // Sound
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sound")
     class USoundBase* FireSound;
+
+    // Multicast RPC to show weapon fire effects to all clients
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastPlayFireEffects(FVector TraceStart, FVector TraceEnd, FVector ImpactPoint, bool bHitSomething);
 
 private:
     // Perform line trace for shooting

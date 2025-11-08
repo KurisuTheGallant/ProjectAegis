@@ -3,10 +3,15 @@
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "DrawDebugHelpers.h"
+#include "Net/UnrealNetwork.h"
 
 AAegisWeapon::AAegisWeapon()
 {
     PrimaryActorTick.bCanEverTick = false;
+
+    // Enable replication
+    bReplicates = true;
+    SetReplicateMovement(true);
 
     // Create weapon mesh component
     WeaponMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("WeaponMesh"));
@@ -17,6 +22,12 @@ AAegisWeapon::AAegisWeapon()
     WeaponDamage = 20.f;
 }
 
+void AAegisWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+    // Add any replicated variables here if needed later
+}
+
 void AAegisWeapon::Fire()
 {
     FHitResult Hit;
@@ -24,6 +35,10 @@ void AAegisWeapon::Fire()
 
     // Perform line trace to see what we hit
     bool bHit = PerformLineTrace(Hit, ShotDirection);
+
+    FVector TraceStart = Hit.TraceStart;
+    FVector TraceEnd = Hit.TraceEnd;
+    FVector ImpactPoint = bHit ? Hit.ImpactPoint : TraceEnd;
 
     if (bHit)
     {
@@ -43,31 +58,14 @@ void AAegisWeapon::Fire()
                 UDamageType::StaticClass()
             );
         }
-
-        // Spawn impact particle effect at hit location
-        if (ImpactEffect)
-        {
-            UGameplayStatics::SpawnEmitterAtLocation(
-                GetWorld(),
-                ImpactEffect,
-                Hit.ImpactPoint,
-                Hit.ImpactNormal.Rotation()
-            );
-        }
-
-        // Draw debug line to visualize the shot (red line for 2 seconds)
-        DrawDebugLine(
-            GetWorld(),
-            Hit.TraceStart,
-            Hit.TraceEnd,
-            FColor::Red,
-            false,
-            2.0f,
-            0,
-            2.0f
-        );
     }
 
+    // Tell all clients to show the fire effects
+    MulticastPlayFireEffects(TraceStart, TraceEnd, ImpactPoint, bHit);
+}
+
+void AAegisWeapon::MulticastPlayFireEffects_Implementation(FVector TraceStart, FVector TraceEnd, FVector ImpactPoint, bool bHitSomething)
+{
     // Play fire sound
     if (FireSound)
     {
@@ -86,6 +84,30 @@ void AAegisWeapon::Fire()
             EAttachLocation::SnapToTarget
         );
     }
+
+    // If we hit something, spawn impact effect
+    if (bHitSomething && ImpactEffect)
+    {
+        FVector ImpactNormal = (TraceStart - ImpactPoint).GetSafeNormal();
+        UGameplayStatics::SpawnEmitterAtLocation(
+            GetWorld(),
+            ImpactEffect,
+            ImpactPoint,
+            ImpactNormal.Rotation()
+        );
+    }
+
+    // Draw debug line to visualize the shot (red line for 2 seconds)
+    DrawDebugLine(
+        GetWorld(),
+        TraceStart,
+        TraceEnd,
+        FColor::Red,
+        false,
+        2.0f,
+        0,
+        2.0f
+    );
 }
 
 bool AAegisWeapon::PerformLineTrace(FHitResult& OutHit, FVector& OutShotDirection)

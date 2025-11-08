@@ -20,6 +20,9 @@ public:
     // Constructor
     AAegisCharacter();
 
+    // Replication
+    virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 protected:
     // Called when the game starts
     virtual void BeginPlay() override;
@@ -38,7 +41,7 @@ protected:
 
     // === ABILITY SYSTEM ===
 
-// Grenade class to spawn
+    // Grenade class to spawn
     UPROPERTY(EditDefaultsOnly, Category = "Abilities")
     TSubclassOf<AAegisGrenade> GrenadeClass;
 
@@ -47,7 +50,7 @@ protected:
     float GrenadeCooldown;
 
     // Is grenade on cooldown?
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities")
+    UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Abilities")
     bool bGrenadeOnCooldown;
 
     // Grenade throw speed
@@ -60,6 +63,13 @@ protected:
     // Use grenade ability
     void UseGrenadeAbility();
 
+    // Server RPC for grenade
+    UFUNCTION(Server, Reliable, WithValidation)
+    void ServerUseGrenade();
+
+    // Helper function to spawn grenade
+    void SpawnAndThrowGrenade();
+
     // Reset grenade cooldown
     UFUNCTION()
     void ResetGrenadeCooldown();
@@ -71,18 +81,22 @@ protected:
     // Fire weapon function
     void FireWeapon();
 
+    // Server RPC for firing
+    UFUNCTION(Server, Reliable, WithValidation)
+    void ServerFireWeapon();
+
     // === HEALTH SYSTEM ===
 
     // Maximum health
-    UPROPERTY(EditDefaultsOnly, Category = "Health")
+    UPROPERTY(Replicated, EditDefaultsOnly, Category = "Health")
     float MaxHealth;
 
     // Current health
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+    UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Health")
     float CurrentHealth;
 
     // Is player dead?
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Health")
+    UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Health")
     bool bIsDead;
 
     // Respawn delay in seconds
@@ -100,6 +114,14 @@ protected:
     UFUNCTION()
     void Respawn();
 
+    // Multicast RPC for death effects
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastPlayDeathEffects();
+
+    // Multicast RPC for respawn effects
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastRespawnEffects();
+
     // === ENERGY STEAL SYSTEM ===
 
     // Base movement speed (default)
@@ -115,7 +137,7 @@ protected:
     float BuffDuration;
 
     // Current buff active?
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Energy Steal")
+    UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Energy Steal")
     bool bIsBuffActive;
 
     // Timer handle for buff duration

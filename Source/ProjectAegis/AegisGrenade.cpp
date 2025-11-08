@@ -10,6 +10,9 @@ AAegisGrenade::AAegisGrenade()
 {
     PrimaryActorTick.bCanEverTick = true;
 
+    bReplicates = true;
+    SetReplicateMovement(true);
+
     CollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
     CollisionComponent->InitSphereRadius(15.0f);
     CollisionComponent->SetCollisionProfileName(TEXT("BlockAll"));

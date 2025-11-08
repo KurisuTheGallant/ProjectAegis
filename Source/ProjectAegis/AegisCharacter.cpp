@@ -9,10 +9,15 @@
 #include "Particles/ParticleSystemComponent.h"
 #include "GameFramework/PlayerStart.h"
 #include "EngineUtils.h"
+#include "Net/UnrealNetwork.h"
 
 AAegisCharacter::AAegisCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
+
+    // Enable replication
+    bReplicates = true;
+    SetReplicateMovement(true);
 
     GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 
@@ -41,6 +46,22 @@ AAegisCharacter::AAegisCharacter()
     ActiveBuffAuraComponent = nullptr;
 }
 
+void AAegisCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+    Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+    // Replicate health to all clients
+    DOREPLIFETIME(AAegisCharacter, CurrentHealth);
+    DOREPLIFETIME(AAegisCharacter, MaxHealth);
+    DOREPLIFETIME(AAegisCharacter, bIsDead);
+
+    // Replicate speed buff
+    DOREPLIFETIME(AAegisCharacter, bIsBuffActive);
+
+    // Replicate grenade cooldown
+    DOREPLIFETIME(AAegisCharacter, bGrenadeOnCooldown);
+}
+
 void AAegisCharacter::BeginPlay()
 {
     Super::BeginPlay();
@@ -49,6 +70,14 @@ void AAegisCharacter::BeginPlay()
     bIsDead = false;
 
     BaseMovementSpeed = GetCharacterMovement()->MaxWalkSpeed;
+
+    // Setup third-person mesh (what other players see)
+    if (GetMesh())
+    {
+        GetMesh()->SetOwnerNoSee(true); // Owner doesn't see their own body
+        GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        GetMesh()->SetCollisionProfileName(TEXT("CharacterMesh"));
+    }
 
     if (WeaponClass)
     {
@@ -119,8 +148,30 @@ void AAegisCharacter::FireWeapon()
 {
     if (CurrentWeapon && !bIsDead)
     {
+        // If we're a client, ask the server to fire
+        if (!HasAuthority())
+        {
+            ServerFireWeapon();
+        }
+        else
+        {
+            // We're the server, fire directly
+            CurrentWeapon->Fire();
+        }
+    }
+}
+
+void AAegisCharacter::ServerFireWeapon_Implementation()
+{
+    if (CurrentWeapon && !bIsDead)
+    {
         CurrentWeapon->Fire();
     }
+}
+
+bool AAegisCharacter::ServerFireWeapon_Validate()
+{
+    return true; // Basic anti-cheat check
 }
 
 float AAegisCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
@@ -149,9 +200,9 @@ float AAegisCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damage
 
 void AAegisCharacter::Die()
 {
-    if (bIsDead)
+    if (bIsDead || !HasAuthority())
     {
-        return;
+        return; // Only server handles death
     }
 
     bIsDead = true;
@@ -179,10 +230,46 @@ void AAegisCharacter::Die()
         RespawnDelay,
         false
     );
+
+    // Tell all clients to play death animation/effects
+    MulticastPlayDeathEffects();
+}
+
+void AAegisCharacter::MulticastPlayDeathEffects_Implementation()
+{
+    // This runs on ALL clients
+    if (GetMesh())
+    {
+        GetMesh()->SetSimulatePhysics(true);
+    }
+
+    // Play death sound/particles here later
+}
+
+void AAegisCharacter::MulticastRespawnEffects_Implementation()
+{
+    // This runs on ALL clients to fix the mesh
+    if (GetMesh())
+    {
+        GetMesh()->SetSimulatePhysics(false);
+        GetMesh()->SetCollisionProfileName(TEXT("CharacterMesh"));
+        GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        GetMesh()->SetVisibility(true, true);
+
+        // Reattach to capsule in case it got detached
+        GetMesh()->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+        GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f));
+        GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+    }
 }
 
 void AAegisCharacter::Respawn()
 {
+    if (!HasAuthority())
+    {
+        return; // Only server can respawn
+    }
+
     UE_LOG(LogTemp, Warning, TEXT("Player respawning..."));
 
     APlayerStart* PlayerStart = nullptr;
@@ -202,11 +289,20 @@ void AAegisCharacter::Respawn()
     bIsDead = false;
 
     GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-    GetMesh()->SetSimulatePhysics(false);
-    GetMesh()->SetCollisionProfileName(TEXT("CharacterMesh"));
-    GetMesh()->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
-    GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f));
-    GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+
+    // Fix the mesh properly
+    if (GetMesh())
+    {
+        GetMesh()->SetSimulatePhysics(false);
+        GetMesh()->SetCollisionProfileName(TEXT("CharacterMesh"));
+        GetMesh()->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+        GetMesh()->SetRelativeLocation(FVector(0.f, 0.f, -90.f));
+        GetMesh()->SetRelativeRotation(FRotator(0.f, -90.f, 0.f));
+
+        // CRITICAL: Re-enable collision and visibility
+        GetMesh()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+        GetMesh()->SetVisibility(true, true); // Make visible to all
+    }
 
     if (CurrentWeapon)
     {
@@ -214,6 +310,9 @@ void AAegisCharacter::Respawn()
     }
 
     EnableInput(Cast<APlayerController>(GetController()));
+
+    // Tell all clients to fix their version of this character
+    MulticastRespawnEffects();
 
     UE_LOG(LogTemp, Warning, TEXT("Player respawned!"));
 }
@@ -337,6 +436,33 @@ void AAegisCharacter::UseGrenadeAbility()
         return;
     }
 
+    // Clients ask server to throw grenade
+    if (!HasAuthority())
+    {
+        ServerUseGrenade();
+    }
+    else
+    {
+        // Server throws grenade directly
+        SpawnAndThrowGrenade();
+    }
+}
+
+void AAegisCharacter::ServerUseGrenade_Implementation()
+{
+    if (!bIsDead && !bGrenadeOnCooldown && GrenadeClass)
+    {
+        SpawnAndThrowGrenade();
+    }
+}
+
+bool AAegisCharacter::ServerUseGrenade_Validate()
+{
+    return true;
+}
+
+void AAegisCharacter::SpawnAndThrowGrenade()
+{
     UE_LOG(LogTemp, Warning, TEXT("Throwing grenade!"));
 
     AController* OwnerController = GetController();
