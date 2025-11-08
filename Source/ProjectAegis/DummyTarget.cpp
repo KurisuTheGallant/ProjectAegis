@@ -1,5 +1,6 @@
 #include "DummyTarget.h"
 #include "AegisCharacter.h"
+#include "AegisGameMode.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -93,6 +94,14 @@ void ADummyTarget::Die(AController* Killer)
                 AegisChar->OnKillEnemy(DeathLocation);
                 UE_LOG(LogTemp, Warning, TEXT("Notified AegisCharacter of kill at location!"));
             }
+        }
+
+        // NOTIFY GAME MODE OF KILL (for scoring)
+        AAegisGameMode* GameMode = Cast<AAegisGameMode>(GetWorld()->GetAuthGameMode());
+        if (GameMode)
+        {
+            GameMode->OnPlayerKill(Killer, nullptr);
+            UE_LOG(LogTemp, Warning, TEXT("Notified GameMode of kill!"));
         }
     }
 
