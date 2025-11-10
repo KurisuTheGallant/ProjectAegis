@@ -1,4 +1,5 @@
-#include "AegisGameMode.h"
+﻿#include "AegisGameMode.h"
+#include "UObject/ConstructorHelpers.h"
 #include "AegisCharacter.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
@@ -7,8 +8,17 @@
 
 AAegisGameMode::AAegisGameMode()
 {
-    // Set default pawn class
-    DefaultPawnClass = AAegisCharacter::StaticClass();
+    // Find and set the default pawn class
+    static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/FirstPerson/Blueprints/BP_FirstPersonCharacter"));
+    if (PlayerPawnBPClass.Class != NULL)
+    {
+        DefaultPawnClass = PlayerPawnBPClass.Class;
+        UE_LOG(LogTemp, Warning, TEXT("AegisGameMode: Default pawn class set successfully!"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("AegisGameMode: Failed to find default pawn class! Check the path."));
+    }
 
     // Game rules
     KillsToWinRound = 10;
@@ -122,6 +132,37 @@ AActor* AAegisGameMode::ChoosePlayerStart_Implementation(AController* Player)
     return PlayerStarts[0];
 }
 
+// 🟢 NEW FUNCTION - Handle character-to-character kills
+void AAegisGameMode::OnPlayerKilled(AAegisCharacter* Killer, AAegisCharacter* Victim)
+{
+    if (!Killer || !Victim)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("OnPlayerKilled: Invalid Killer or Victim!"));
+        return;
+    }
+
+    UE_LOG(LogTemp, Warning, TEXT("GameMode: %s killed %s"),
+        *Killer->GetName(),
+        *Victim->GetName());
+
+    // Get the victim's location for visual effects
+    FVector KillLocation = Victim->GetActorLocation();
+
+    // Call the killer's OnKillEnemy function to apply speed buff
+    Killer->OnKillEnemy(KillLocation);
+
+    UE_LOG(LogTemp, Warning, TEXT("Speed buff applied to killer!"));
+
+    // Also update team scores if you want
+    AController* KillerController = Killer->GetController();
+    AController* VictimController = Victim->GetController();
+
+    if (KillerController && VictimController)
+    {
+        OnPlayerKill(KillerController, VictimController);
+    }
+}
+
 void AAegisGameMode::OnPlayerKill(AController* Killer, AController* Victim)
 {
     if (!bRoundActive || bMatchOver)
@@ -129,14 +170,26 @@ void AAegisGameMode::OnPlayerKill(AController* Killer, AController* Victim)
         return;
     }
 
-    // Get teams
+    // Get killer's team
     EAegisTeam KillerTeam = GetPlayerTeam(Killer);
-    EAegisTeam VictimTeam = GetPlayerTeam(Victim);
 
-    // Don't count team kills or self kills
-    if (KillerTeam == VictimTeam || KillerTeam == EAegisTeam::None)
+    // If victim is nullptr (like a dummy), still award the kill
+    if (Victim != nullptr)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Team kill or self kill - no points awarded"));
+        EAegisTeam VictimTeam = GetPlayerTeam(Victim);
+
+        // Don't count team kills
+        if (KillerTeam == VictimTeam)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Team kill - no points awarded"));
+            return;
+        }
+    }
+
+    // Don't count kills if killer has no team
+    if (KillerTeam == EAegisTeam::None)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("Killer has no team - no points awarded"));
         return;
     }
 

@@ -1,8 +1,11 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "AegisGameMode.generated.h"
+
+// Forward declaration
+class AAegisCharacter;
 
 // Enum for team identification
 UENUM(BlueprintType)
@@ -33,6 +36,10 @@ public:
     // Called when a player gets a kill
     UFUNCTION(BlueprintCallable, Category = "Scoring")
     void OnPlayerKill(AController* Killer, AController* Victim);
+
+    // 🟢 NEW FUNCTION - Called when a character kills another character
+    UFUNCTION(BlueprintCallable, Category = "Scoring")
+    void OnPlayerKilled(AAegisCharacter* Killer, AAegisCharacter* Victim);
 
     // Get team score
     UFUNCTION(BlueprintPure, Category = "Scoring")

@@ -99,6 +99,10 @@ protected:
     UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Health")
     bool bIsDead;
 
+    // Store the last controller who damaged us
+    UPROPERTY()
+    AController* LastDamageCauser;
+
     // Respawn delay in seconds
     UPROPERTY(EditDefaultsOnly, Category = "Health")
     float RespawnDelay;

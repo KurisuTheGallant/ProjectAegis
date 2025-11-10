@@ -1,6 +1,7 @@
 #include "AegisCharacter.h"
 #include "AegisWeapon.h"
 #include "AegisGrenade.h"
+#include "AegisGameMode.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -184,6 +185,9 @@ float AAegisCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Damage
 
     const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
+    // ?? ADDED: Store who damaged us
+    LastDamageCauser = EventInstigator;
+
     CurrentHealth -= ActualDamage;
     CurrentHealth = FMath::Max(CurrentHealth, 0.0f);
 
@@ -208,6 +212,29 @@ void AAegisCharacter::Die()
     bIsDead = true;
 
     UE_LOG(LogTemp, Warning, TEXT("Player died!"));
+
+    // ?? ADDED: Notify GameMode about the kill
+    if (AAegisGameMode* GameMode = Cast<AAegisGameMode>(GetWorld()->GetAuthGameMode()))
+    {
+        // Get the victim (this character)
+        AAegisCharacter* Victim = this;
+
+        // Get the killer (whoever damaged us last)
+        AAegisCharacter* Killer = nullptr;
+        if (LastDamageCauser)
+        {
+            Killer = Cast<AAegisCharacter>(LastDamageCauser->GetPawn());
+        }
+
+        if (Killer && Killer != Victim)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Notifying GameMode: %s killed %s"),
+                *Killer->GetName(), *Victim->GetName());
+
+            // Tell the GameMode a kill happened
+            GameMode->OnPlayerKilled(Killer, Victim);
+        }
+    }
 
     DisableInput(Cast<APlayerController>(GetController()));
 
@@ -523,4 +550,4 @@ float AAegisCharacter::GetGrenadeCooldownRemaining() const
     }
 
     return GetWorldTimerManager().GetTimerRemaining(GrenadeCooldownTimerHandle);
-}
+}       
