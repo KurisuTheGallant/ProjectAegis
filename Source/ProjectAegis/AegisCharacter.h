@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -210,6 +210,10 @@ public:
     // Get current health
     UFUNCTION(BlueprintPure, Category = "Health")
     float GetCurrentHealth() const { return CurrentHealth; }
+
+    // 🟢 NEW: Get max health
+    UFUNCTION(BlueprintPure, Category = "Health")
+    float GetMaxHealth() const { return MaxHealth; }
 
     // Check if dead
     UFUNCTION(BlueprintPure, Category = "Health")

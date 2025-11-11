@@ -1,6 +1,8 @@
 ﻿#include "AegisGameMode.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AegisCharacter.h"
+#include "AegisPlayerController.h"
+#include "AegisHUD.h"
 #include "GameFramework/PlayerStart.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
@@ -19,6 +21,12 @@ AAegisGameMode::AAegisGameMode()
     {
         UE_LOG(LogTemp, Error, TEXT("AegisGameMode: Failed to find default pawn class! Check the path."));
     }
+
+    // Set HUD class
+    HUDClass = AAegisHUD::StaticClass();
+
+    // Set Player Controller class
+    PlayerControllerClass = AAegisPlayerController::StaticClass();
 
     // Game rules
     KillsToWinRound = 10;
@@ -132,7 +140,6 @@ AActor* AAegisGameMode::ChoosePlayerStart_Implementation(AController* Player)
     return PlayerStarts[0];
 }
 
-// 🟢 NEW FUNCTION - Handle character-to-character kills
 void AAegisGameMode::OnPlayerKilled(AAegisCharacter* Killer, AAegisCharacter* Victim)
 {
     if (!Killer || !Victim)
@@ -153,7 +160,19 @@ void AAegisGameMode::OnPlayerKilled(AAegisCharacter* Killer, AAegisCharacter* Vi
 
     UE_LOG(LogTemp, Warning, TEXT("Speed buff applied to killer!"));
 
-    // Also update team scores if you want
+    // Notify all players of the kill
+    for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+    {
+        AAegisPlayerController* PC = Cast<AAegisPlayerController>(It->Get());
+        if (PC)
+        {
+            FString KillerName = Killer->GetController() ? Killer->GetController()->GetName() : TEXT("Unknown");
+            FString VictimName = Victim->GetController() ? Victim->GetController()->GetName() : TEXT("Unknown");
+            PC->ClientShowKillNotification(KillerName, VictimName);
+        }
+    }
+
+    // Also update team scores
     AController* KillerController = Killer->GetController();
     AController* VictimController = Victim->GetController();
 

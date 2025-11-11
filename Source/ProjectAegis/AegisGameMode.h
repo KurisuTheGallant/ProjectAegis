@@ -37,7 +37,7 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Scoring")
     void OnPlayerKill(AController* Killer, AController* Victim);
 
-    // 🟢 NEW FUNCTION - Called when a character kills another character
+    // Called when a character kills another character
     UFUNCTION(BlueprintCallable, Category = "Scoring")
     void OnPlayerKilled(AAegisCharacter* Killer, AAegisCharacter* Victim);
 
@@ -52,6 +52,12 @@ public:
     // Get player's team
     UFUNCTION(BlueprintCallable, Category = "Teams")
     EAegisTeam GetPlayerTeam(AController* PlayerController) const;
+
+    // === PUBLIC MEMBERS FOR HUD ACCESS ===
+
+    // Current round number
+    UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
+    int32 CurrentRound;
 
 protected:
     // Called when the game starts
@@ -74,10 +80,6 @@ protected:
     // Rounds needed to win match
     UPROPERTY(EditDefaultsOnly, Category = "Game Rules")
     int32 RoundsToWinMatch;
-
-    // Current round number
-    UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
-    int32 CurrentRound;
 
     // Team A rounds won
     UPROPERTY(Replicated, VisibleAnywhere, BlueprintReadOnly, Category = "Game Rules")
